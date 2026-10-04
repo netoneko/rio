@@ -1,7 +1,7 @@
 # rio on the Akuma panel (2026-10-05). Backup of the previous file:
 # /root/.config/rio/config.toml.bak
 shell = { program = "/bin/sh" }
-# Alt+Q quits without the "are you sure" screen
+# Esc, Q quits without the "are you sure" screen
 confirm-before-quit = false
 
 [fonts]
@@ -10,12 +10,14 @@ size = 27.0
 family = "Source Code Pro"
 
 # Two sessions side by side. The right half of this panel is dead, so
-# Alt+S swaps the sessions and keeps the active one on the left.
-# Keys: the console cannot send Super or Ctrl+Shift, so everything is on
-# Alt. "Alt+x" also works as Esc, then x.
-#   Alt+D  split (new session on the right)    Alt+S  swap: other session to the left, focused
-#   Alt+N  focus the other pane                Alt+W  close the focused pane
-#   Alt+Q  quit rio                            Ctrl+D also ends a shell (and rio with the last one)
+# Esc, S swaps the sessions and keeps the active one on the left.
+# Keys: press and release Esc, then the letter. (The console cannot send
+# Super or Ctrl+Shift, and the kernel drops Alt; the bindings below say
+# "alt" because a terminal sends Alt+x as ESC then x - over ssh real Alt works.)
+#   Esc, D  split (new session on the right)    Esc, S  swap: other session to the left, focused
+#   Esc, N  focus the other pane                Esc, W  close the focused pane
+#   Esc, Q  quit rio                            exit / Ctrl+D  end the shell (closes its pane;
+#                                                              rio quits with the last one)
 [navigation]
 mode = "Plain"
 use-split = true
