@@ -429,6 +429,22 @@ impl<T: EventListener + Clone + std::marker::Send + 'static> ContextManager<T> {
             Ok(context) => context,
             Err(err_message) => {
                 tracing::error!("{:?}", err_message);
+                // Akuma bring-up: tracing never reaches disk on the box;
+                // record why the pty failed in the fb platform's trace.
+                #[cfg(target_env = "musl")]
+                {
+                    use std::io::Write;
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("/tmp/akuma-fb.log")
+                    {
+                        let _ = writeln!(
+                            f,
+                            "[ctx] create_context failed, dead context: {err_message:?}"
+                        );
+                    }
+                }
 
                 event_proxy.send_event(
                     RioEvent::ReportToAssistant(RioError {

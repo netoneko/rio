@@ -48,6 +48,26 @@ where
         .expect("thread spawn works")
 }
 
+/// Akuma bring-up trace: append a line to `/tmp/akuma-fb.log`, the file the
+/// fb platform logs input to, so the pty path shares one timeline with the
+/// keys. musl-only (the Akuma build); a no-op everywhere else.
+#[cfg(feature = "pty")]
+#[inline]
+fn plog(msg: std::fmt::Arguments) {
+    #[cfg(target_env = "musl")]
+    {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/akuma-fb.log")
+        {
+            let _ = writeln!(f, "[pty] {msg}");
+        }
+    }
+    #[cfg(not(target_env = "musl"))]
+    let _ = msg;
+}
+
 #[cfg(feature = "pty")]
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 /// Max bytes per read(2). Draining the whole tty queue in one giant
@@ -249,7 +269,9 @@ where
         loop {
             // Read from the PTY.
             let cap = (unprocessed + READ_CHUNK).min(buf.len());
-            let stopped = match self.pty.reader().read(&mut buf[unprocessed..cap]) {
+            let r = self.pty.reader().read(&mut buf[unprocessed..cap]);
+            plog(format_args!("read -> {:?}", r.as_ref().map_err(|e| e.raw_os_error())));
+            let stopped = match r {
                 Ok(0) => {
                     result = Ok(ReadOutcome::Closed);
                     true
@@ -321,7 +343,10 @@ where
     fn drain_recv_channel(&mut self, state: &mut State) -> bool {
         while let Some(msg) = self.receiver.recv() {
             match msg {
-                Msg::Input(input) => state.write_list.push_back(input),
+                Msg::Input(input) => {
+                    plog(format_args!("input {}B queued", input.len()));
+                    state.write_list.push_back(input)
+                }
                 Msg::Resize(window_size) => {
                     let _ = self.pty.set_winsize(window_size.into());
                 }
@@ -338,7 +363,13 @@ where
 
         'write_many: while let Some(mut current) = state.take_current() {
             'write_one: loop {
-                match self.pty.writer().write(current.remaining_bytes()) {
+                let r = self.pty.writer().write(current.remaining_bytes());
+                plog(format_args!(
+                    "write {}B -> {:?}",
+                    current.remaining_bytes().len(),
+                    r.as_ref().map_err(|e| e.raw_os_error())
+                ));
+                match r {
                     Ok(0) => {
                         state.set_current(Some(current));
                         break 'write_many;
@@ -374,6 +405,13 @@ where
             let mut state = State::default();
             let mut buf = [0u8; READ_BUFFER_SIZE];
             let reason = self.run(&mut state, &mut buf);
+            plog(format_args!(
+                "reactor exit: {:?}",
+                reason.as_ref().map(|r| match r {
+                    ExitReason::Shutdown => "shutdown".to_string(),
+                    ExitReason::ChildExited(c) => format!("child exited {c:?}"),
+                })
+            ));
             self.finish(&mut state, &mut buf, reason);
             (self, state)
         })
@@ -407,6 +445,14 @@ where
         self.pty
             .register(&self.poll, &mut tokens, Ready::readable(), poll_opts)?;
 
+        plog(format_args!(
+            "reactor up: channel={:?} read={:?} write={:?} child={:?}",
+            channel_token,
+            self.pty.read_token(),
+            self.pty.write_token(),
+            self.pty.child_event_token()
+        ));
+
         let mut events = Events::with_capacity(1024);
         let mut last_interest = Ready::readable();
 
@@ -418,7 +464,17 @@ where
                 .map(|st| st.saturating_duration_since(Instant::now()));
 
             events.clear();
-            if let Err(err) = self.poll.poll(&mut events, timeout) {
+            let polled = self.poll.poll(&mut events, timeout);
+            plog(format_args!(
+                "poll({:?}) -> {:?} {:?}",
+                timeout,
+                polled.as_ref().map_err(|e| e.raw_os_error()),
+                events
+                    .iter()
+                    .map(|e| (e.token(), e.readiness()))
+                    .collect::<Vec<_>>()
+            ));
+            if let Err(err) = polled {
                 match err.kind() {
                     ErrorKind::Interrupted => continue,
                     _ => return Err(err),
@@ -498,6 +554,7 @@ where
                 interest.insert(Ready::writable());
             }
             if interest != last_interest {
+                plog(format_args!("reregister {interest:?}"));
                 self.pty.reregister(&self.poll, interest, poll_opts)?;
                 last_interest = interest;
             }
