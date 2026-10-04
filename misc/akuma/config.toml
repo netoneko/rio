@@ -32,14 +32,15 @@ keys = [
   { key = "q", with = "alt", action = "Quit" },
 ]
 
-# --- CRT look: curved tubes + green phosphor --------------------------------
-# To turn it OFF: delete everything from here to "end CRT look" and restart
-# rio (default theme, flat picture). To keep the colours but drop the curved
-# glass/scanlines, delete just the [renderer] table below.
-# "akuma-crt-2" = two tubes side by side, one per pane; "akuma-crt" = one.
-# Curved glass/scanlines are OFF for now: uncomment the next two lines to bring them back.
-# [renderer]
-# filters = ["akuma-crt-2"]
+# --- CRT look: scanlines + green phosphor ------------------------------------
+# To turn it ALL off: delete everything from here to "end CRT look" and
+# restart rio (default theme, clean picture).
+# The filter: "akuma-crt-2" = two curved tubes (fish-eye), one per pane;
+# "-flat" = no curvature, keeps scanlines, vignette and beam softness;
+# "akuma-crt" = one tube. Delete the [renderer] table for no effect at all
+# (colours and cursor stay).
+[renderer]
+filters = ["akuma-crt-2-flat"]
 
 [colors]
 background = "#050a05"

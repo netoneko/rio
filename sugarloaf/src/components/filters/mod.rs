@@ -24,26 +24,33 @@ impl FiltersBrush {
         self.filter_chains.clear();
         self.filter_intermediates.clear();
 
-        // Akuma: "akuma-crt" / "akuma-crt-N" is the backend's cheap CRT
-        // look applied at present (N side-by-side tubes, one per pane), not
-        // a librashader chain; anything else in the list turns it off.
+        // Akuma: "akuma-crt[-N][-flat]" is the backend's cheap CRT look
+        // applied at present (N side-by-side tubes, one per pane; "flat" =
+        // no barrel curvature, scanlines/vignette/beam spread kept), not a
+        // librashader chain. Without one in the list the look is off.
         #[cfg(target_env = "musl")]
         let filters: Vec<Filter> = {
-            let mut tubes = 0;
+            let (mut tubes, mut curved) = (0, true);
             let rest = filters
                 .iter()
                 .filter(|f| {
                     let f = f.to_lowercase();
-                    match f.strip_prefix("akuma-crt") {
-                        Some("") => tubes = 1,
-                        Some(n) => tubes = n.trim_start_matches('-').parse().unwrap_or(1),
-                        None => return true,
+                    let Some(opts) = f.strip_prefix("akuma-crt") else {
+                        return true;
+                    };
+                    tubes = 1;
+                    for opt in opts.split('-').filter(|o| !o.is_empty()) {
+                        match opt {
+                            "flat" => curved = false,
+                            n => tubes = n.parse().unwrap_or(1),
+                        }
                     }
                     false
                 })
                 .cloned()
                 .collect();
             akuma_cli_wgpu::wgpu_backend::crt::set_tubes(tubes);
+            akuma_cli_wgpu::wgpu_backend::crt::set_curved(curved);
             rest
         };
         #[cfg(target_env = "musl")]
