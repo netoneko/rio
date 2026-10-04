@@ -702,10 +702,15 @@ impl<T: 'static> EventLoop<T> {
                 event_handler("UserEvent", event::Event::UserEvent(event), &self.window_target);
             }
 
-            while let Some(id) = {
-                let mut redraws = self.window_target.p.redraws.lock().unwrap();
-                redraws.pop_front()
-            } {
+            // Redraws: drain a SNAPSHOT of the queue, not the live one.
+            // A client that repaints continuously (rio does) pushes a new
+            // request from inside the redraw handler; popping the live
+            // deque here is an infinite loop that starves the rest of the
+            // iteration (tty reads, AboutToWait) — found on the box,
+            // 2026-10-04: thousands of RedrawRequested, zero further reads.
+            let pending_redraws =
+                std::mem::take(&mut *self.window_target.p.redraws.lock().unwrap());
+            for id in pending_redraws {
                 event_handler("RedrawRequested",
                     event::Event::WindowEvent {
                         window_id: RootWindowId(id),
