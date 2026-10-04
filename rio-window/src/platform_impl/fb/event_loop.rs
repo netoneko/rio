@@ -104,8 +104,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
     while i < buf.len() {
         let b = buf[i];
         if b == 0x1b {
-            // escape sequence or bare ESC
-            if buf.len() >= i + 3 && buf[i + 1] == b'[' {
+            if buf.len() >= i + 2 && buf[i + 1] == b'[' {
                 // CSI: parameters then a final byte
                 let mut j = i + 2;
                 while j < buf.len() && !(0x40..=0x7e).contains(&buf[j]) {
@@ -122,7 +121,16 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                 i = j + 1;
                 continue;
             }
-            if buf.len() >= i + 2 && buf[i + 1] == b'O' && buf.len() >= i + 3 {
+            if buf.len() == i + 1 && b == 0x1b {
+                // a lone trailing ESC may be the prefix of a sequence that
+                // has not arrived yet; wait
+                break;
+            }
+            if buf.len() >= i + 2 && buf[i + 1] == b'O' {
+                if buf.len() < i + 3 {
+                    // SS3 prefix split across reads
+                    break;
+                }
                 // SS3: O P / O Q / O R / O S = F1..F4
                 let msg = match buf[i + 2] {
                     b'P' => named(NamedKey::F1, KeyCode::F1),
@@ -341,6 +349,13 @@ fn physical_for_char(ch: char) -> (PhysicalKey, Option<NamedKey>) {
 // Modifier state (shared shape with the orbital platform)
 // ---------------------------------------------------------------------------
 
+/// Input debugging: `AKUMA_FB_DEBUG_INPUT=1` logs every raw tty read and
+/// decoded key to stderr (useful with `2>/tmp/keys.log` from another shell).
+fn debug_input() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("AKUMA_FB_DEBUG_INPUT").is_ok())
+}
+
 /// Fold the console's ctrl byte back in: with Ctrl held, 'i' really means
 /// Tab and 'm' means Enter (the tty folds them before we ever see them).
 fn refold(msg: &mut KeyMsg, ctrl: bool) {
@@ -527,6 +542,12 @@ impl<T: 'static> EventLoop<T> {
                         if n == 0 {
                             break;
                         }
+                        if debug_input() {
+                            eprintln!(
+                                "[fb] tty read {n}B: {:?}",
+                                String::from_utf8_lossy(&chunk[..n])
+                            );
+                        }
                         keybuf.extend_from_slice(&chunk[..n]);
                         if keybuf.len() > 4096 {
                             keybuf.clear(); // runaway sequence; drop it
@@ -539,6 +560,10 @@ impl<T: 'static> EventLoop<T> {
                     let consumed = decode_keys(&keybuf, &mut msgs);
                     keybuf.drain(..consumed);
                 }
+            }
+
+            if debug_input() && !msgs.is_empty() {
+                eprintln!("[fb] decoded {} keys: {:?}", msgs.len(), msgs);
             }
 
             for mut msg in msgs {
@@ -813,5 +838,79 @@ impl OwnedDisplayHandle {
         &self,
     ) -> Result<raw_window_handle::RawDisplayHandle, raw_window_handle::HandleError> {
         Ok(raw_window_handle::WebDisplayHandle::new().into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decode(bytes: &[u8]) -> Vec<KeyMsg> {
+        let mut out = Vec::new();
+        let consumed = decode_keys(bytes, &mut out);
+        assert_eq!(consumed, bytes.len(), "decoder consumed all bytes");
+        out
+    }
+
+    #[test]
+    fn enter_is_cr_with_enter_key() {
+        let msgs = decode(b"\r");
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].named, Some(NamedKey::Enter));
+        assert_eq!(msgs[0].text.as_deref(), Some("\n"));
+    }
+
+    #[test]
+    fn printable_text_is_one_msg_per_char() {
+        let msgs = decode(b"ls");
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].text.as_deref(), Some("l"));
+        assert_eq!(msgs[1].text.as_deref(), Some("s"));
+        assert!(matches!(msgs[0].physical, PhysicalKey::Code(KeyCode::KeyL)));
+    }
+
+    #[test]
+    fn ctrl_letter_has_no_text_and_lowers_the_key() {
+        let msgs = decode(&[0x04]); // ctrl+d
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].text, None);
+        assert_eq!(msgs[0].logical, Key::Character("d".into()));
+        assert!(matches!(msgs[0].physical, PhysicalKey::Code(KeyCode::KeyD)));
+    }
+
+    #[test]
+    fn arrows_are_csi_sequences() {
+        let msgs = decode(b"\x1b[A\x1b[B\x1b[C\x1b[D");
+        assert_eq!(msgs.len(), 4);
+        assert_eq!(msgs[0].named, Some(NamedKey::ArrowUp));
+        assert_eq!(msgs[3].named, Some(NamedKey::ArrowLeft));
+        assert!(msgs.iter().all(|m| m.text.is_none()));
+    }
+
+    #[test]
+    fn backspace_is_del_byte() {
+        let msgs = decode(&[0x7f]);
+        assert_eq!(msgs[0].named, Some(NamedKey::Backspace));
+    }
+
+    #[test]
+    fn incomplete_sequence_waits_for_more_bytes() {
+        let mut out = Vec::new();
+        let mut buf: Vec<u8> = b"\x1b[".to_vec();
+        let consumed = decode_keys(&buf, &mut out);
+        assert_eq!(consumed, 0);
+        assert!(out.is_empty());
+        buf.push(b'A');
+        let consumed = decode_keys(&buf, &mut out);
+        assert_eq!(consumed, 3);
+        assert_eq!(out[0].named, Some(NamedKey::ArrowUp));
+    }
+
+    #[test]
+    fn utf8_text_survives() {
+        let msgs = "é".as_bytes();
+        let out = decode(msgs);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].text.as_deref(), Some("é"));
     }
 }

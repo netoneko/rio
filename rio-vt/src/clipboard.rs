@@ -76,13 +76,27 @@ impl Default for Clipboard {
             selection: None,
         };
 
-        #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
+        #[cfg(all(
+            feature = "x11",
+            not(any(target_os = "macos", windows)),
+            not(target_env = "musl")
+        ))]
         return Self {
             clipboard: Box::new(ClipboardContext::new().unwrap()),
             selection: Some(Box::new(
                 X11ClipboardContext::<X11SelectionClipboard>::new().unwrap(),
             )),
         };
+
+        // musl (the Akuma framebuffer build): there is no X display to
+        // connect to; the nop clipboard keeps OSC 52 working through
+        // rio's own handling instead of panicking at startup.
+        #[cfg(all(
+            feature = "x11",
+            not(any(target_os = "macos", windows)),
+            target_env = "musl"
+        ))]
+        return Self::new_nop();
 
         #[cfg(not(any(feature = "x11", target_os = "macos", windows)))]
         return Self::new_nop();
