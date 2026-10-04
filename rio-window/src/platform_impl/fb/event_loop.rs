@@ -538,8 +538,12 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
         let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::ActiveEventLoop| {
+            move |tag: &'static str,
+                  event: event::Event<T>,
+                  window_target: &event_loop::ActiveEventLoop| {
+                flog(&format!("handler {tag} enter"));
                 event_handler_inner(event, window_target);
+                flog(&format!("handler {tag} exit"));
             };
 
         let window_id_cell: std::cell::Cell<Option<WindowId>> = std::cell::Cell::new(None);
@@ -554,10 +558,10 @@ impl<T: 'static> EventLoop<T> {
         let mut last_mods = Modifiers::default();
 
         loop {
-            event_handler(event::Event::NewEvents(start_cause), &self.window_target);
+            event_handler("NewEvents", event::Event::NewEvents(start_cause), &self.window_target);
 
             if start_cause == StartCause::Init {
-                event_handler(event::Event::Resumed, &self.window_target);
+                event_handler("Resumed", event::Event::Resumed, &self.window_target);
             }
 
             // Handle window creates: the fb window is born knowing its size.
@@ -566,14 +570,14 @@ impl<T: 'static> EventLoop<T> {
                 creates.pop_front()
             } {
                 window_id_cell.set(Some(win_id));
-                event_handler(
+                event_handler("Resized-create", 
                     event::Event::WindowEvent {
                         window_id: RootWindowId(win_id),
                         event: event::WindowEvent::Resized(size),
                     },
                     &self.window_target,
                 );
-                event_handler(
+                event_handler("Focused-create", 
                     event::Event::WindowEvent {
                         window_id: RootWindowId(win_id),
                         event: event::WindowEvent::Focused(true),
@@ -587,7 +591,7 @@ impl<T: 'static> EventLoop<T> {
                 let mut destroys = self.window_target.p.destroys.lock().unwrap();
                 destroys.pop_front()
             } {
-                event_handler(
+                event_handler("Destroyed", 
                     event::Event::WindowEvent {
                         window_id: RootWindowId(destroy_id),
                         event: event::WindowEvent::Destroyed,
@@ -650,7 +654,7 @@ impl<T: 'static> EventLoop<T> {
                 let mods = keyboard_modifiers(shift, ctrl, alt);
 
                 let id = window_id_cell.get().unwrap_or(WindowId::dummy());
-                event_handler(
+                event_handler("KeyboardInput", 
                     event::Event::WindowEvent {
                         window_id: RootWindowId(id),
                         event: event::WindowEvent::KeyboardInput {
@@ -683,7 +687,7 @@ impl<T: 'static> EventLoop<T> {
                     &self.window_target,
                 );
                 if mods.state != last_mods.state {
-                    event_handler(
+                    event_handler("ModifiersChanged",
                         event::Event::WindowEvent {
                             window_id: RootWindowId(id),
                             event: event::WindowEvent::ModifiersChanged(mods.clone()),
@@ -695,14 +699,14 @@ impl<T: 'static> EventLoop<T> {
             }
 
             while let Ok(event) = self.user_events_receiver.try_recv() {
-                event_handler(event::Event::UserEvent(event), &self.window_target);
+                event_handler("UserEvent", event::Event::UserEvent(event), &self.window_target);
             }
 
             while let Some(id) = {
                 let mut redraws = self.window_target.p.redraws.lock().unwrap();
                 redraws.pop_front()
             } {
-                event_handler(
+                event_handler("RedrawRequested",
                     event::Event::WindowEvent {
                         window_id: RootWindowId(id),
                         event: event::WindowEvent::RedrawRequested,
@@ -711,7 +715,7 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            event_handler(event::Event::AboutToWait, &self.window_target);
+            event_handler("AboutToWait", event::Event::AboutToWait, &self.window_target);
 
             if self.window_target.p.exiting() {
                 break;
@@ -763,7 +767,7 @@ impl<T: 'static> EventLoop<T> {
             drop(tty);
         }
 
-        event_handler(event::Event::LoopExiting, &self.window_target);
+        event_handler("LoopExiting", event::Event::LoopExiting, &self.window_target);
 
         Ok(())
     }
