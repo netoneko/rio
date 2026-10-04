@@ -35,8 +35,9 @@ keys = [
 # rio (default theme, flat picture). To keep the colours but drop the curved
 # glass/scanlines, delete just the [renderer] table below.
 # "akuma-crt-2" = two tubes side by side, one per pane; "akuma-crt" = one.
-[renderer]
-filters = ["akuma-crt-2"]
+# Curved glass/scanlines are OFF for now: uncomment the next two lines to bring them back.
+# [renderer]
+# filters = ["akuma-crt-2"]
 
 [colors]
 background = "#050a05"
