@@ -194,6 +194,13 @@ mod spawn {
                 libc::dup2(shell_in_r.as_raw_fd(), 0);
                 libc::dup2(shell_out_w.as_raw_fd(), 1);
                 libc::dup2(shell_out_w.as_raw_fd(), 2);
+                // Close everything else rio has open. Akuma does not honour
+                // SOCK_CLOEXEC (rio's own sockets showed up in every shell),
+                // and a leaked relay socket or pipe end keeps another pane's
+                // EOF from ever arriving.
+                for fd in 3..1024 {
+                    libc::close(fd);
+                }
                 if let Some(dir) = &cwd {
                     libc::chdir(dir.as_ptr());
                 }

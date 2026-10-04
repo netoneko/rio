@@ -536,7 +536,17 @@ where
                         let hung_up = false;
                         // HUP can accompany unread final output.
                         if event.readiness().is_readable() || hung_up {
-                            if let Err(err) = self.pty_read(state, buf) {
+                            let read = self.pty_read(state, buf);
+                            // musl (Akuma) pipe pty: EOF on the master means the
+                            // relay saw the shell's output close — the shell is
+                            // gone. Do not wait for a SIGCHLD that this kernel
+                            // may never deliver. (A Linux pty master reports EIO
+                            // here instead, handled below.)
+                            #[cfg(target_env = "musl")]
+                            if matches!(read, Ok(ReadOutcome::Closed)) {
+                                return Ok(ExitReason::ChildExited(None));
+                            }
+                            if let Err(err) = read {
                                 // On Linux, a `read` on the master side of a PTY can fail
                                 // with `EIO` if the client side hangs up.  In that case,
                                 // just loop back round for the inevitable `Exited` event.
