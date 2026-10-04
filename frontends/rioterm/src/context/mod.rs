@@ -705,6 +705,13 @@ impl<T: EventListener + Clone + std::marker::Send + 'static> ContextManager<T> {
     }
 
     #[inline]
+    pub fn rotate_splits(&mut self, sugarloaf: &mut Sugarloaf) -> bool {
+        let moved = self.contexts[self.current_index].rotate_splits(sugarloaf);
+        self.sync_current_route();
+        moved
+    }
+
+    #[inline]
     pub fn move_divider_up(&mut self, amount: f32, sugarloaf: &mut Sugarloaf) -> bool {
         self.contexts[self.current_index].move_divider_up(amount, sugarloaf)
     }

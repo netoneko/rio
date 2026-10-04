@@ -989,6 +989,32 @@ impl<T: rio_backend::event::EventListener> ContextGrid<T> {
         }
     }
 
+    /// Move every session one panel back in reading order (the next
+    /// panel's session lands in the first, top-left panel; the first goes
+    /// last) and focus the first panel. Panels keep their rectangles; each
+    /// moved terminal is resized to its new one. With two panels this is a
+    /// swap that keeps the active session top-left — wanted on a panel
+    /// whose right half is dead (Akuma).
+    pub fn rotate_splits(&mut self, sugarloaf: &mut Sugarloaf) -> bool {
+        if self.inner.len() < 2 {
+            return false;
+        }
+        let keys = self.get_ordered_keys();
+        let mut items: Vec<ContextGridItem<T>> = keys
+            .iter()
+            .filter_map(|k| self.inner.remove(k))
+            .collect();
+        let rects: Vec<[f32; 4]> = items.iter().map(|i| i.layout_rect).collect();
+        items.rotate_left(1);
+        for ((key, mut item), rect) in keys.iter().zip(items).zip(rects) {
+            item.layout_rect = rect;
+            self.inner.insert(*key, item);
+        }
+        self.current = keys[0];
+        self.apply_taffy_layout(sugarloaf);
+        true
+    }
+
     #[inline]
     pub fn select_next_split_no_loop(&mut self) -> bool {
         if self.inner.len() == 1 {

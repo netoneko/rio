@@ -132,6 +132,8 @@ struct KeyMsg {
     physical: PhysicalKey,
     named: Option<NamedKey>,
     pressed: bool,
+    /// ESC-prefixed (the console's Alt encoding; also Esc then the key)
+    alt: bool,
 }
 
 /// Decode one or more `KeyMsg`s out of a raw byte buffer (console
@@ -195,6 +197,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                     physical,
                     named: None,
                     pressed: true,
+                    alt: true,
                 });
                 i += 2;
                 continue;
@@ -210,6 +213,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                 physical: PhysicalKey::Code(KeyCode::Enter),
                 named: Some(NamedKey::Enter),
                 pressed: true,
+                alt: false,
             }),
             b'\t' => out.push(KeyMsg {
                 text: Some("\t".into()),
@@ -217,6 +221,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                 physical: PhysicalKey::Code(KeyCode::Tab),
                 named: Some(NamedKey::Tab),
                 pressed: true,
+                alt: false,
             }),
             0x7f | 0x08 => out.push(KeyMsg {
                 text: Some("\u{7f}".into()),
@@ -224,6 +229,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                 physical: PhysicalKey::Code(KeyCode::Backspace),
                 named: Some(NamedKey::Backspace),
                 pressed: true,
+                alt: false,
             }),
             0x01..=0x1a => {
                 // Ctrl+letter (0x01..0x1a; tab/cr already handled above)
@@ -235,6 +241,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                     physical,
                     named: None,
                     pressed: true,
+                    alt: false,
                 });
             }
             0x20..=0x7e => {
@@ -246,6 +253,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                     physical,
                     named: None,
                     pressed: true,
+                    alt: false,
                 });
             }
             0x80..=0xff => {
@@ -264,6 +272,7 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
                             physical,
                             named: None,
                             pressed: true,
+                            alt: false,
                         });
                     }
                     Err(_) => {}
@@ -323,6 +332,7 @@ fn named(n: NamedKey, c: KeyCode) -> KeyMsg {
         physical: PhysicalKey::Code(c),
         named: Some(n),
         pressed: true,
+        alt: false,
     }
 }
 
@@ -806,10 +816,9 @@ fn keyboard_modifiers(shift: bool, ctrl: bool, alt: bool) -> Modifiers {
     }
 }
 
-/// Alt+char (ESC-prefixed) has no text folding, but the escape decoder
-/// does not currently flag it; extended to keep the call site honest.
-fn alt_of(_msg: &KeyMsg) -> bool {
-    false
+/// Alt+char: the decoder flags ESC-prefixed printables.
+fn alt_of(msg: &KeyMsg) -> bool {
+    msg.alt
 }
 
 pub struct EventLoopProxy<T: 'static> {
@@ -953,6 +962,15 @@ mod tests {
         assert_eq!(msgs[0].text.as_deref(), Some("l"));
         assert_eq!(msgs[1].text.as_deref(), Some("s"));
         assert!(matches!(msgs[0].physical, PhysicalKey::Code(KeyCode::KeyL)));
+    }
+
+    #[test]
+    fn esc_prefixed_char_is_alt() {
+        let msgs = decode(b"\x1br");
+        assert_eq!(msgs.len(), 1);
+        assert!(msgs[0].alt);
+        assert_eq!(msgs[0].logical, Key::Character("r".into()));
+        assert!(!decode(b"r")[0].alt);
     }
 
     #[test]

@@ -258,6 +258,7 @@ impl From<String> for Action {
             "scrolltobottom" => Some(Action::ScrollToBottom),
             "splitright" => Some(Action::SplitRight),
             "splitdown" => Some(Action::SplitDown),
+            "swapsplit" => Some(Action::SwapSplit),
             "selectnextsplit" => Some(Action::SelectNextSplit),
             "selectprevsplit" => Some(Action::SelectPrevSplit),
             "selectnextsplitortab" => Some(Action::SelectNextSplitOrTab),
@@ -495,6 +496,9 @@ pub enum Action {
 
     /// Split vertically
     SplitDown,
+
+    /// Rotate sessions through the splits; the next one moves top-left
+    SwapSplit,
 
     /// Select next split
     SelectNextSplit,

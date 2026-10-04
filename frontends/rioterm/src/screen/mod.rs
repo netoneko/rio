@@ -1501,6 +1501,14 @@ impl Screen<'_> {
                         self.context_manager.select_next_split();
                         self.mark_dirty();
                     }
+                    Act::SwapSplit => {
+                        self.cancel_search(clipboard);
+                        self.clear_selection();
+                        if self.context_manager.rotate_splits(&mut self.sugarloaf) {
+                            self.mark_dirty();
+                            self.renderer.trail_cursor.snap();
+                        }
+                    }
                     Act::SelectPrevSplit => {
                         self.cancel_search(clipboard);
                         self.context_manager.select_prev_split();
