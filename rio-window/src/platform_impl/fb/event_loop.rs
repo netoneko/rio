@@ -94,6 +94,16 @@ impl Tty {
     fn read_available(&self, buf: &mut [u8]) -> usize {
         // SAFETY: buf is a valid slice for the process lifetime.
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+        if n < 0 && debug_input() {
+            static ONCE: std::sync::Once = std::sync::Once::new();
+            ONCE.call_once(|| {
+                eprintln!(
+                    "[fb] read error {}: {}",
+                    n,
+                    std::io::Error::last_os_error()
+                )
+            });
+        }
         if n <= 0 {
             0
         } else {
@@ -473,6 +483,9 @@ impl<T: 'static> EventLoop<T> {
         let tty = Tty::open()
             .map_err(|e| EventLoopError::Os(os_error!(e)))?;
         let (pipe_read, waker) = Waker::new();
+        if debug_input() {
+            eprintln!("[fb] EventLoop::new done (screen + tty ok)");
+        }
 
         Ok(Self {
             tty: Arc::new(Mutex::new(Some(tty))),
@@ -517,6 +530,10 @@ impl<T: 'static> EventLoop<T> {
 
         let mut start_cause = StartCause::Init;
         let mut keybuf: Vec<u8> = Vec::with_capacity(256);
+        let mut iterations: u64 = 0;
+        if debug_input() {
+            eprintln!("[fb] event loop entered, tty opened");
+        }
         // modifier latches: the console folds modifiers into the bytes it
         // sends (upper-case text = shift, control bytes = ctrl, ESC prefix
         // = alt), so they are recovered per key press, not tracked
@@ -594,6 +611,11 @@ impl<T: 'static> EventLoop<T> {
                     let consumed = decode_keys(&keybuf, &mut msgs);
                     keybuf.drain(..consumed);
                 }
+            }
+
+            iterations += 1;
+            if debug_input() && iterations % 100 == 0 {
+                eprintln!("[fb] loop iteration {iterations}");
             }
 
             if debug_input() && !msgs.is_empty() {
