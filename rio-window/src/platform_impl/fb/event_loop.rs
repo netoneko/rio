@@ -50,6 +50,22 @@ impl Tty {
         if unsafe { libc::tcgetattr(fd, &mut saved) } == -1 {
             return Err(OsError::new(std::io::Error::last_os_error()));
         }
+        // On Akuma the console shell and its interactive children share ONE
+        // terminal state. A raw-mode client killed with SIGKILL (no restore)
+        // leaves it raw, and the next client would "restore" that: output
+        // without NL->CRLF on the console for good. A console we are started
+        // from is meant to be cooked, so heal a raw one before saving it.
+        if saved.c_lflag & libc::ICANON == 0 || saved.c_oflag & libc::OPOST == 0 {
+            flog(&format!(
+                "tty: found raw (iflag={:#x} oflag={:#x} lflag={:#x}); will restore a sane cooked state",
+                saved.c_iflag, saved.c_oflag, saved.c_lflag
+            ));
+            saved.c_iflag |= libc::ICRNL | libc::IXON;
+            saved.c_oflag |= libc::OPOST | libc::ONLCR;
+            saved.c_lflag |=
+                libc::ICANON | libc::ECHO | libc::ECHOE | libc::ECHOK | libc::ISIG | libc::IEXTEN;
+            saved.c_cc[libc::VMIN] = 1;
+        }
         let mut raw = saved;
         //same flags as every raw console client (cfmakeraw): no echo, no
         // line buffering, no signal generation (^C arrives as a byte).
