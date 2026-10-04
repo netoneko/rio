@@ -24,7 +24,7 @@ pub mod cell;
 pub mod cpu;
 #[cfg(target_os = "macos")]
 pub mod metal;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 pub mod vulkan;
 #[cfg(feature = "wgpu")]
 pub mod webgpu;
@@ -55,7 +55,7 @@ pub enum GridRenderer {
     Wgpu(webgpu::WgpuGridRenderer),
     /// Native Vulkan grid renderer. Phase 3 = bg pass; text pass +
     /// atlases land in Phase 4.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     Vulkan(vulkan::VulkanGridRenderer),
     /// Software grid renderer. Same `CellBg` / `CellText` storage as
     /// the GPU backends, blits into the softbuffer surface during
@@ -77,7 +77,7 @@ impl GridRenderer {
             ContextType::Wgpu(ctx) => {
                 GridRenderer::Wgpu(webgpu::WgpuGridRenderer::new(ctx, cols, rows))
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => {
                 GridRenderer::Vulkan(vulkan::VulkanGridRenderer::new(ctx, cols, rows))
             }
@@ -95,7 +95,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.resize(cols, rows),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.resize(cols, rows),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.resize(cols, rows),
             GridRenderer::Cpu(r) => r.resize(cols, rows),
         }
@@ -110,7 +110,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.clear_atlas(),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.clear_atlas(),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.clear_atlas(),
             GridRenderer::Cpu(r) => r.clear_atlas(),
         }
@@ -127,7 +127,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.write_row(row, bg, fg),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.write_row(row, bg, fg),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.write_row(row, bg, fg),
             GridRenderer::Cpu(r) => r.write_row(row, bg, fg),
         }
@@ -141,7 +141,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.clear_row(row),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.clear_row(row),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.clear_row(row),
             GridRenderer::Cpu(r) => r.clear_row(row),
         }
@@ -153,7 +153,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.set_cursor(block, non_block),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.set_cursor(block, non_block),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.set_cursor(block, non_block),
             GridRenderer::Cpu(r) => r.set_cursor(block, non_block),
         }
@@ -221,7 +221,7 @@ impl GridRenderer {
     /// pass. No-op for non-Vulkan renderers (Metal handles uploads
     /// inside its own `replace_region`; wgpu handles them via
     /// `queue.write_texture`).
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn prepare_vulkan(
         &mut self,
         ctx: &crate::context::vulkan::VulkanContext,
@@ -234,7 +234,7 @@ impl GridRenderer {
     }
 
     /// Vulkan cell-bg pass.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn render_bg_vulkan(
         &mut self,
         ctx: &crate::context::vulkan::VulkanContext,
@@ -248,7 +248,7 @@ impl GridRenderer {
     }
 
     /// Vulkan cell-text pass.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn render_text_vulkan(
         &mut self,
         ctx: &crate::context::vulkan::VulkanContext,
@@ -306,7 +306,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.lookup_glyph(key),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.lookup_glyph(key),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.lookup_glyph(key),
             GridRenderer::Cpu(r) => r.lookup_glyph(key),
         }
@@ -320,7 +320,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.lookup_glyph_color(key),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.lookup_glyph_color(key),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.lookup_glyph_color(key),
             GridRenderer::Cpu(r) => r.lookup_glyph_color(key),
         }
@@ -338,7 +338,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.insert_glyph(key, glyph),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.insert_glyph(key, glyph),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.insert_glyph(key, glyph),
             GridRenderer::Cpu(r) => r.insert_glyph(key, glyph),
         }
@@ -356,7 +356,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.insert_glyph_color(key, glyph),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.insert_glyph_color(key, glyph),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.insert_glyph_color(key, glyph),
             GridRenderer::Cpu(r) => r.insert_glyph_color(key, glyph),
         }
@@ -371,7 +371,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.needs_full_rebuild(),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.needs_full_rebuild(),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.needs_full_rebuild(),
             GridRenderer::Cpu(r) => r.needs_full_rebuild(),
         }
@@ -385,7 +385,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.mark_full_rebuild_done(),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.mark_full_rebuild_done(),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.mark_full_rebuild_done(),
             GridRenderer::Cpu(r) => r.mark_full_rebuild_done(),
         }
@@ -399,7 +399,7 @@ impl GridRenderer {
             GridRenderer::Metal(r) => r.request_full_rebuild(),
             #[cfg(feature = "wgpu")]
             GridRenderer::Wgpu(r) => r.request_full_rebuild(),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             GridRenderer::Vulkan(r) => r.request_full_rebuild(),
             GridRenderer::Cpu(r) => r.request_full_rebuild(),
         }

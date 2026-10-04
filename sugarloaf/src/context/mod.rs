@@ -1,7 +1,7 @@
 pub mod cpu;
 #[cfg(target_os = "macos")]
 pub mod metal;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 pub mod vulkan;
 #[cfg(feature = "wgpu")]
 pub mod webgpu;
@@ -19,7 +19,7 @@ pub enum ContextType<'a> {
     Wgpu(webgpu::WgpuContext<'a>),
     #[cfg(target_os = "macos")]
     Metal(metal::MetalContext),
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     Vulkan(vulkan::VulkanContext),
     Cpu(cpu::CpuContext),
     /// Lifetime placeholder for the Wgpu variant when it's
@@ -45,7 +45,7 @@ impl Context<'_> {
             SugarloafBackend::Metal => {
                 ContextType::Metal(metal::MetalContext::new(sugarloaf_window))
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             SugarloafBackend::Vulkan => {
                 ContextType::Vulkan(vulkan::VulkanContext::new(sugarloaf_window))
             }
@@ -64,7 +64,7 @@ impl Context<'_> {
             ContextType::Wgpu(ctx) => ctx.scale,
             #[cfg(target_os = "macos")]
             ContextType::Metal(ctx) => ctx.scale,
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => ctx.scale,
             ContextType::Cpu(ctx) => ctx.scale,
             #[cfg(not(feature = "wgpu"))]
@@ -83,7 +83,7 @@ impl Context<'_> {
             ContextType::Metal(ctx) => {
                 ctx.set_scale(scale);
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => {
                 ctx.set_scale(scale);
             }
@@ -102,7 +102,7 @@ impl Context<'_> {
             ContextType::Wgpu(ctx) => ctx.size,
             #[cfg(target_os = "macos")]
             ContextType::Metal(ctx) => ctx.size,
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => ctx.size,
             ContextType::Cpu(ctx) => ctx.size,
             #[cfg(not(feature = "wgpu"))]
@@ -120,7 +120,7 @@ impl Context<'_> {
             ContextType::Wgpu(ctx) => ctx.resize(width, height),
             #[cfg(target_os = "macos")]
             ContextType::Metal(ctx) => ctx.resize(width, height),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => ctx.resize(width, height),
             ContextType::Cpu(ctx) => ctx.resize(width, height),
             #[cfg(not(feature = "wgpu"))]
@@ -135,7 +135,7 @@ impl Context<'_> {
             ContextType::Wgpu(ctx) => ctx.supports_f16(),
             #[cfg(target_os = "macos")]
             ContextType::Metal(ctx) => ctx.supports_f16(),
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(ctx) => ctx.supports_f16(),
             ContextType::Cpu(ctx) => ctx.supports_f16(),
             #[cfg(not(feature = "wgpu"))]

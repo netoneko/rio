@@ -19,6 +19,12 @@ members = [
 ]
 resolver = "2"
 
+# Vendored font-kit: on musl (the Akuma framebuffer build) there is no
+# fontconfig library, so SystemSource is the fs walk and the fontconfig
+# source/dependency are compiled out. See extra/font-kit/src/source.rs.
+[patch.crates-io]
+font-kit = { path = "extra/font-kit" }
+
 [workspace.package]
 version = "0.5.28"
 authors = ["Raphael Amorim <rapha850@gmail.com>"]

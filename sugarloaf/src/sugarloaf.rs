@@ -113,7 +113,7 @@ pub enum SugarloafBackend {
     /// Native Vulkan via `ash`. Linux only for now (Windows would need a
     /// `khr::win32_surface` branch in `context::vulkan::create_surface`).
     /// Mirrors the Metal backend in scope: no librashader filters.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     Vulkan,
     /// CPU rendering via tiny-skia + softbuffer.
     Cpu,
@@ -166,8 +166,22 @@ impl Default for SugarloafRenderer {
         // layer and the librashader filter chain. Other non-macOS desktop
         // targets (Windows, BSDs) need the `wgpu` feature enabled and
         // fall back to the wgpu umbrella backend.
-        #[cfg(all(target_os = "linux", not(target_arch = "wasm32")))]
+        // musl (the Akuma framebuffer build) has no Vulkan: the wgpu
+        // custom-backend path is the renderer there.
+        #[cfg(all(
+            target_os = "linux",
+            not(target_arch = "wasm32"),
+            not(target_env = "musl")
+        ))]
         let default_backend = SugarloafBackend::Vulkan;
+
+        #[cfg(all(
+            target_os = "linux",
+            not(target_arch = "wasm32"),
+            target_env = "musl",
+            feature = "wgpu"
+        ))]
+        let default_backend = SugarloafBackend::Wgpu(wgpu::Backends::empty());
 
         #[cfg(all(
             not(target_arch = "wasm32"),
@@ -939,7 +953,7 @@ impl Sugarloaf<'_> {
             crate::context::ContextType::Metal(_) => {
                 self.render_metal(grids);
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             crate::context::ContextType::Vulkan(_) => {
                 self.render_vulkan(grids);
             }
@@ -1017,7 +1031,7 @@ impl Sugarloaf<'_> {
     ///   7. swapchain image barrier `COLOR_ATTACHMENT_OPTIMAL → PRESENT_SRC_KHR`
     ///   8. `present_frame` (queue submit + present)
     #[inline]
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn render_vulkan(
         &mut self,
         grids: &mut [(&mut crate::grid::GridRenderer, crate::grid::GridUniforms)],

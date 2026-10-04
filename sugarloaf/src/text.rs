@@ -127,7 +127,7 @@ struct TextCpuState {
     atlas_color: crate::grid::cpu::CpuGridAtlas,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 struct TextVulkanState {
     shared: std::sync::Arc<crate::context::vulkan::VkShared>,
     atlas_grayscale: crate::grid::vulkan::VulkanGlyphAtlas,
@@ -172,7 +172,7 @@ pub struct Text {
     font_data_cache: FxHashMap<u32, (crate::font::SharedData, u32, swash::CacheKey)>,
     #[cfg(all(feature = "wgpu", not(target_os = "macos")))]
     wgpu: Option<TextWgpuState>,
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     vulkan: Option<TextVulkanState>,
     cpu: Option<TextCpuState>,
 }
@@ -201,7 +201,7 @@ impl Text {
             font_data_cache: FxHashMap::default(),
             #[cfg(all(feature = "wgpu", not(target_os = "macos")))]
             wgpu: None,
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             vulkan: None,
             cpu: None,
         }
@@ -571,7 +571,7 @@ impl Text {
             // rasterize+insert into whichever atlas is initialized.
             // Vulkan takes precedence on Linux when the Vulkan
             // backend is active; wgpu is the fallback.
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             if self.vulkan.is_some() {
                 let state = self.vulkan.as_mut()?;
                 if let Some(s) = state.atlas_grayscale.lookup(key) {
@@ -1019,7 +1019,7 @@ impl Text {
 
     //  Vulkan GPU backend
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn init_vulkan(&mut self, ctx: &crate::context::vulkan::VulkanContext) {
         if self.vulkan.is_some() {
             return;
@@ -1032,7 +1032,7 @@ impl Text {
     /// called BEFORE `Sugarloaf::render_vulkan` opens its
     /// dynamic-rendering pass (matches `GridRenderer::prepare_vulkan`).
     /// No-op when neither atlas has pending uploads.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn prepare_vulkan(
         &mut self,
         _ctx: &crate::context::vulkan::VulkanContext,
@@ -1052,7 +1052,7 @@ impl Text {
     /// the dynamic-rendering pass and set viewport/scissor. No-op
     /// when no instances were recorded this frame or the Vulkan
     /// state isn't initialised.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn render_vulkan(
         &mut self,
         cmd: ash::vk::CommandBuffer,
@@ -1550,14 +1550,14 @@ fn premul_blend_wgpu() -> wgpu::BlendState {
 // Compiled at build time by `sugarloaf/build.rs`. The fragment
 // shader is shared with the grid text pass — same atlas sampling,
 // same inputs.
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 const UI_TEXT_VERT_SPV: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/ui_text.vert.spv"));
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 const UI_TEXT_FRAG_SPV: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/grid_text.frag.spv"));
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 fn build_text_vulkan_state(
     ctx: &crate::context::vulkan::VulkanContext,
 ) -> TextVulkanState {
@@ -1710,7 +1710,7 @@ fn build_text_vulkan_state(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 fn create_text_sampler(device: &ash::Device) -> ash::vk::Sampler {
     use ash::vk;
     let info = vk::SamplerCreateInfo::default()
@@ -1727,7 +1727,7 @@ fn create_text_sampler(device: &ash::Device) -> ash::vk::Sampler {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 fn build_ui_text_pipeline_vulkan(
     device: &ash::Device,
     pipeline_cache: ash::vk::PipelineCache,
@@ -1856,7 +1856,7 @@ fn build_ui_text_pipeline_vulkan(
     pipeline
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 fn load_shader_module_vulkan(
     device: &ash::Device,
     bytes: &[u8],
@@ -1872,7 +1872,7 @@ fn load_shader_module_vulkan(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 impl Drop for TextVulkanState {
     fn drop(&mut self) {
         unsafe {

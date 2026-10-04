@@ -5,7 +5,12 @@ pub mod fonts;
 // Re-exported here so `sugarloaf::font::glyf_decode` /
 // `sugarloaf::font::glyph_registry` keep resolving.
 pub use rio_graphics::glyph::{glyf_decode, glyph_registry};
-#[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+#[cfg(all(
+    unix,
+    not(target_os = "macos"),
+    not(target_os = "android"),
+    not(target_env = "musl")
+))]
 pub mod linux;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod loader;
@@ -360,7 +365,17 @@ impl FontLibrary {
         // widths, even for fallback glyphs.
         let want_mono = true;
 
-        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+        // musl (the Akuma framebuffer build): no fontconfig on the
+        // system, so there is no per-codepoint system discovery —
+        // unmatched codepoints render as tofu. Fonts come from
+        // configured families/files; font-kit's fs-walk SystemSource
+        // still finds anything under /usr/share/fonts.
+        #[cfg(all(
+            unix,
+            not(target_os = "macos"),
+            not(target_os = "android"),
+            not(target_env = "musl")
+        ))]
         let discovered = crate::font::linux::discover_fallback(
             &primary_family,
             ch,
@@ -368,6 +383,14 @@ impl FontLibrary {
             want_bold,
             want_italic,
         )?;
+
+        #[cfg(target_env = "musl")]
+        let discovered = {
+            let _ = (&primary_family, want_mono, want_bold, want_italic);
+            // No fontconfig on the system: no per-codepoint system
+            // discovery. Unmatched codepoints render as tofu.
+            return None;
+        };
 
         #[cfg(target_os = "windows")]
         let discovered = crate::font::windows::discover_fallback(

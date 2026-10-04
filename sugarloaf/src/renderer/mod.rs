@@ -2,7 +2,7 @@ mod batch;
 mod compositor;
 pub mod cpu;
 pub(crate) mod image_cache;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 pub mod vulkan;
 
 use crate::components::core::orthographic_projection;
@@ -66,7 +66,7 @@ pub enum RendererType {
     /// Native Vulkan backend (Linux). Mirrors the `Metal` variant in
     /// scope: no librashader filters. Phase 1 = clear-and-present;
     /// real pipelines land in later phases.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     Vulkan(vulkan::VulkanRenderer),
     /// CPU backend: no GPU brush; rasterization happens in `cpu::CpuPipeline` at present time.
     Cpu,
@@ -735,7 +735,7 @@ enum ImageTexture {
     /// Native Vulkan upload — owns image + view + descriptor set
     /// (the descriptor set's binding 0 is wired to the image view +
     /// shared sampler at upload time, so draw paths just bind it).
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     Vulkan(vulkan::VulkanImageTexture),
 }
 
@@ -983,7 +983,7 @@ fn upload_background_image_texture(
         // (the renderer holds the descriptor set + sampler this free fn
         // can't see), so this match arm just declines and lets the
         // dispatcher try the renderer-bound path. Linux-only.
-        #[cfg(target_os = "linux")]
+        #[cfg(all(target_os = "linux", not(target_env = "musl")))]
         crate::context::ContextType::Vulkan(_) => return None,
         #[cfg(not(feature = "wgpu"))]
         crate::context::ContextType::_Phantom(_) => unreachable!(),
@@ -1012,7 +1012,7 @@ impl Renderer {
             ContextType::Metal(metal_context) => {
                 RendererType::Metal(MetalRenderer::new(metal_context, colorspace))
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(vulkan_context) => RendererType::Vulkan(
                 vulkan::VulkanRenderer::new(vulkan_context, colorspace),
             ),
@@ -1113,7 +1113,7 @@ impl Renderer {
             // Vulkan needs the renderer's descriptor-set layout +
             // sampler to wire the per-image descriptor set, so it
             // takes a different path that knows about both.
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             let used_vulkan =
                 if matches!(&context.inner, crate::context::ContextType::Vulkan(_)) {
                     self.upload_background_image_vulkan(context, &pixels);
@@ -1121,7 +1121,7 @@ impl Renderer {
                 } else {
                     false
                 };
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(not(all(target_os = "linux", not(target_env = "musl"))))]
             let used_vulkan = false;
 
             if !used_vulkan {
@@ -1248,7 +1248,7 @@ impl Renderer {
             // upload is the cost we'd pay regardless. Move to a
             // deferred per-frame pattern later if profiling shows
             // image-heavy workloads stall.
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             if let crate::context::ContextType::Vulkan(vk_ctx) = &context.inner {
                 let RendererType::Vulkan(brush) = &self.brush_type else {
                     continue;
@@ -1278,7 +1278,7 @@ impl Renderer {
             }
             let gpu = match &context.inner {
                 crate::context::ContextType::Cpu(_) => unreachable!(),
-                #[cfg(target_os = "linux")]
+                #[cfg(all(target_os = "linux", not(target_env = "musl")))]
                 crate::context::ContextType::Vulkan(_) => unreachable!(),
                 #[cfg(feature = "wgpu")]
                 crate::context::ContextType::Wgpu(ctx) => {
@@ -2437,7 +2437,7 @@ impl Renderer {
     /// submit-and-wait is acceptable for one-shot uploads
     /// (config-load time); kitty per-frame images take a different
     /// deferred path.
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     fn upload_background_image_vulkan(
         &mut self,
         context: &crate::context::Context,
@@ -2486,7 +2486,7 @@ impl Renderer {
     // are cfg'd out). Keeping the `if let` form so the same code stays
     // valid when wgpu support is enabled.
     #[allow(irrefutable_let_patterns)]
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(target_env = "musl")))]
     pub fn render_vulkan(
         &mut self,
         cmd: ash::vk::CommandBuffer,
@@ -2576,7 +2576,7 @@ impl Renderer {
             ContextType::Metal(metal_ctx) => {
                 orthographic_projection(metal_ctx.size.width, metal_ctx.size.height)
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(vulkan_ctx) => {
                 orthographic_projection(vulkan_ctx.size.width, vulkan_ctx.size.height)
             }
@@ -2613,7 +2613,7 @@ impl Renderer {
                 // on the next frame's `orthographic_projection` call.
                 let _ = transform;
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             RendererType::Vulkan(_vulkan_brush) => {
                 // No-op: viewport + scissor are dynamic state set per
                 // frame in `VulkanRenderer::render`. The swapchain

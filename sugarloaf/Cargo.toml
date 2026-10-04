@@ -102,13 +102,15 @@ walkdir = "2.5.0"
 softbuffer = "0.4.8"
 ttf-parser = { version = "0.25.1", default-features = false, features = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"] }
 
-[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android"))))'.dependencies]
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android")), not(target_env = "musl")))'.dependencies]
 fontconfig-parser = { version = "0.5.8", default-features = false }
 # Direct fontconfig FFI for per-codepoint discovery (the missing
 # piece on Linux that macOS gets for free via CoreText). Already in
 # the dep tree as a transitive of font-kit; promoted to a direct
 # dep so we can call `FcFontSort` + `FcCharSet*` ourselves. Debian
 # ships this as `librust-yeslogic-fontconfig-sys-dev`.
+# Not built for musl (the Akuma framebuffer build): no fontconfig
+# there; font/mod.rs stubs `discover_fallback` to None instead.
 yeslogic-fontconfig-sys = "6.0.0"
 # Native Vulkan backend (mirrors the Metal backend in scope: no librashader
 # filters, owns its own swapchain + pipelines). Linux-only for now — Windows

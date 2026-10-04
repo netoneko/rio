@@ -249,7 +249,7 @@ impl ImageCache {
             // yet, so the image cache has nothing to upload. Mirror
             // the CPU path — RAM-resident atlases, no GPU mirror.
             // Phase 6 grows this into real Vulkan texture allocation.
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(_) => {
                 let max_texture_size: u16 = 2048;
                 let color_atlases = vec![ColorAtlasWithTexture {
@@ -889,7 +889,7 @@ impl ImageCache {
             }
             // Phase 1 stub: same as CPU — no GPU upload, atlas data
             // lives in RAM. Phase 6 wires real Vulkan atlas uploads.
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", not(target_env = "musl")))]
             ContextType::Vulkan(_) => {
                 self.mask_atlas.fresh = false;
                 self.mask_atlas.dirty = false;

@@ -37,11 +37,11 @@ fn main() {
 
     println!("cargo:rustc-check-cfg=cfg(unreleased_changelogs)");
 
-    #[cfg(target_os = "macos")]
-    generate_dispatch_bindings();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        generate_dispatch_bindings();
+    }
 }
 
-#[cfg(target_os = "macos")]
 fn generate_dispatch_bindings() {
     use std::{env, path::PathBuf};
 

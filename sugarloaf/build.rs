@@ -61,6 +61,16 @@ fn main() {
         println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
         return;
     }
+    // musl (the Akuma framebuffer build): the native Vulkan backend is
+    // compiled out (see the `not(target_env = "musl")` gates across
+    // sugarloaf/src), so no GLSL → SPIR-V compilation is needed and we
+    // must not require glslc/glslangValidator on the build host.
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    if target_env == "musl" {
+        println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
+        println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENV");
+        return;
+    }
 
     println!("cargo:rerun-if-env-changed=GLSLC");
     println!("cargo:rerun-if-env-changed=GLSLANG_VALIDATOR");
