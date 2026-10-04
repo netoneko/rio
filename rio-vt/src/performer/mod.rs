@@ -61,7 +61,8 @@ fn plog(msg: std::fmt::Arguments) {
             .append(true)
             .open("/tmp/akuma-fb.log")
         {
-            let _ = writeln!(f, "[pty] {msg}");
+            // one write per line, so threads do not splice each other
+            let _ = f.write_all(format!("[pty] {msg}\n").as_bytes());
         }
     }
     #[cfg(not(target_env = "musl"))]
@@ -270,7 +271,15 @@ where
             // Read from the PTY.
             let cap = (unprocessed + READ_CHUNK).min(buf.len());
             let r = self.pty.reader().read(&mut buf[unprocessed..cap]);
-            plog(format_args!("read -> {:?}", r.as_ref().map_err(|e| e.raw_os_error())));
+            match &r {
+                Ok(n) => plog(format_args!(
+                    "read -> {n}B {:?}",
+                    String::from_utf8_lossy(
+                        &buf[unprocessed..unprocessed + (*n).min(120)]
+                    )
+                )),
+                Err(e) => plog(format_args!("read -> err {:?}", e.raw_os_error())),
+            }
             let stopped = match r {
                 Ok(0) => {
                     result = Ok(ReadOutcome::Closed);

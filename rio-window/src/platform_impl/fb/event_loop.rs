@@ -405,7 +405,8 @@ pub(crate) fn flog(msg: &str) {
         .append(true)
         .open("/tmp/akuma-fb.log")
     {
-        let _ = writeln!(f, "{msg}");
+        // one write per line: other threads (rio-vt's pty trace) append too
+        let _ = f.write_all(format!("{msg}\n").as_bytes());
     }
     if debug_input() {
         eprintln!("[fb] {msg}");
@@ -654,6 +655,18 @@ impl<T: 'static> EventLoop<T> {
                 let mods = keyboard_modifiers(shift, ctrl, alt);
 
                 let id = window_id_cell.get().unwrap_or(WindowId::dummy());
+                // Modifiers first, as winit does: clients (rio's ctrl_seq)
+                // read the modifier state while handling the key itself.
+                if mods.state != last_mods.state {
+                    event_handler("ModifiersChanged",
+                        event::Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: event::WindowEvent::ModifiersChanged(mods.clone()),
+                        },
+                        &self.window_target,
+                    );
+                    last_mods = mods;
+                }
                 event_handler("KeyboardInput", 
                     event::Event::WindowEvent {
                         window_id: RootWindowId(id),
@@ -686,16 +699,6 @@ impl<T: 'static> EventLoop<T> {
                     },
                     &self.window_target,
                 );
-                if mods.state != last_mods.state {
-                    event_handler("ModifiersChanged",
-                        event::Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: event::WindowEvent::ModifiersChanged(mods.clone()),
-                        },
-                        &self.window_target,
-                    );
-                    last_mods = mods;
-                }
             }
 
             while let Ok(event) = self.user_events_receiver.try_recv() {

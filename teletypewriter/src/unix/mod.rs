@@ -1,6 +1,8 @@
 #![cfg(unix)]
 
 mod child;
+#[cfg_attr(not(target_env = "musl"), allow(dead_code))]
+mod pipe_pty;
 #[cfg(target_os = "macos")]
 mod macos;
 mod signals;
@@ -828,9 +830,24 @@ pub fn create_pty_with_fork(
                 signals_token: corcovado::Token(0),
             })
         }
-        _ => Err(Error::other(format!(
-            "forkpty failed using {shell_program}"
-        ))),
+        _ => {
+            let err = Error::last_os_error();
+            // Kernels without ptys (Akuma): run the shell on pipes behind a
+            // userspace line discipline instead of a dead terminal.
+            #[cfg(target_env = "musl")]
+            {
+                tracing::warn!("forkpty failed ({err}); falling back to a pipe pty");
+                pipe_pty::spawn(shell_program, args, envs, signals).map_err(|e| {
+                    Error::other(format!(
+                        "forkpty failed using {shell_program} ({err}); pipe fallback failed: {e}"
+                    ))
+                })
+            }
+            #[cfg(not(target_env = "musl"))]
+            Err(Error::other(format!(
+                "forkpty failed using {shell_program}: {err}"
+            )))
+        }
     }
 }
 
