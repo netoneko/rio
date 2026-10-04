@@ -466,6 +466,9 @@ impl Sugarloaf<'_> {
     pub fn update_filters(&mut self, filters: &[Filter]) {
         if filters.is_empty() {
             self.filters_brush = None;
+            // Akuma: no "akuma-crt" in the list (any more) = CRT off
+            #[cfg(target_env = "musl")]
+            akuma_cli_wgpu::wgpu_backend::crt::set_tubes(0);
         } else {
             if self.filters_brush.is_none() {
                 self.filters_brush = Some(FiltersBrush::default());
