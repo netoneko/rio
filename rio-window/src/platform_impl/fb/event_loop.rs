@@ -26,11 +26,19 @@ use super::{DeviceId, KeyEventExtra, MonitorHandle, OsError, WindowId};
 // ---------------------------------------------------------------------------
 
 /// The console keyboard. rio's stdin is the kernel console tty; we put it in
-/// raw mode and decode the bytes (escape sequences, control bytes, UTF-8)
-/// into one `KeyMsg` per press.
+/// raw mode AND non-blocking mode and decode the bytes (escape sequences,
+/// control bytes, UTF-8) into one `KeyMsg` per press.
+///
+/// Non-blocking is load-bearing on Akuma: the kernel's console read does not
+/// honour the `VMIN=0` zero-timeout contract and blocks in the kernel when
+/// the pump has no data — the first `read` call never returned, and the
+/// window sat frozen after its first frame (2026-10-04, on the box). Reads
+/// are only attempted after `poll` reports POLLIN, and `poll` itself is
+/// called with a bounded timeout (never -1) for the same reason.
 struct Tty {
     fd: std::os::unix::io::RawFd,
     saved: libc::termios,
+    saved_flags: libc::c_int,
 }
 
 impl Tty {
@@ -62,10 +70,27 @@ impl Tty {
         if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } == -1 {
             return Err(OsError::new(std::io::Error::last_os_error()));
         }
-        Ok(Tty { fd, saved })
+        let saved_flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if saved_flags == -1 {
+            let e = std::io::Error::last_os_error();
+            unsafe { libc::tcsetattr(fd, libc::TCSANOW, &saved) };
+            return Err(OsError::new(e));
+        }
+        if unsafe { libc::fcntl(fd, libc::F_SETFL, saved_flags | libc::O_NONBLOCK) } == -1 {
+            let e = std::io::Error::last_os_error();
+            unsafe { libc::tcsetattr(fd, libc::TCSANOW, &saved) };
+            return Err(OsError::new(e));
+        }
+        Ok(Tty {
+            fd,
+            saved,
+            saved_flags,
+        })
     }
 
-    /// Non-blocking read of whatever bytes are queued.
+    /// Non-blocking read of whatever bytes are queued. Never blocks: on
+    /// this kernel `read` can block in the console queue even with
+    /// `VMIN=0`, so the fd carries O_NONBLOCK and EAGAIN reads as "none".
     fn read_available(&self, buf: &mut [u8]) -> usize {
         // SAFETY: buf is a valid slice for the process lifetime.
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
@@ -79,9 +104,12 @@ impl Tty {
 
 impl Drop for Tty {
     fn drop(&mut self) {
-        // restore the line discipline the console set up
+        // restore the line discipline and the open flags the console set up
         // SAFETY: as in `open`.
-        unsafe { libc::tcsetattr(self.fd, libc::TCSANOW, &self.saved) };
+        unsafe {
+            libc::tcsetattr(self.fd, libc::TCSANOW, &self.saved);
+            libc::fcntl(self.fd, libc::F_SETFL, self.saved_flags);
+        }
     }
 }
 
@@ -417,6 +445,12 @@ pub struct EventLoop<T> {
     user_events_receiver: mpsc::Receiver<T>,
 }
 
+/// Longest single poll wait, in ms: with `ControlFlow::Wait` the loop
+/// spins at this rate instead of blocking forever, which is what keeps
+/// the tty readable on a kernel whose poll is not trusted (30 Hz of
+/// mostly-noop wakeups is nothing next to a 4K frame).
+const POLL_SLICE_MS: libc::c_int = 33;
+
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(
         _: &super::PlatformSpecificEventLoopAttributes,
@@ -657,7 +691,10 @@ impl<T: 'static> EventLoop<T> {
                 }
             };
 
-            // Wait: tty fd + self-pipe.
+            // Wait: tty fd + self-pipe. The wait is sliced: this kernel's
+            // console poll is not trusted to ever report POLLIN (the read
+            // side does not honour non-blocking semantics either), so a
+            // -1 timeout could wedge the loop with input pending.
             let tty_fd = self
                 .tty
                 .lock()
@@ -669,7 +706,10 @@ impl<T: 'static> EventLoop<T> {
                 libc::pollfd { fd: tty_fd, events: libc::POLLIN, revents: 0 },
                 libc::pollfd { fd: self.pipe_read, events: libc::POLLIN, revents: 0 },
             ];
-            let timeout_ms = timeout.map(|d| d.as_millis() as libc::c_int).unwrap_or(-1);
+            let timeout_ms = match &timeout {
+                Some(d) => (d.as_millis() as libc::c_int).clamp(1, POLL_SLICE_MS),
+                None => POLL_SLICE_MS,
+            };
             // SAFETY: fds is a valid poll array for the call.
             let ready = unsafe { libc::poll(fds.as_mut_ptr(), 2, timeout_ms) };
             let _ = ready; // EINTR etc. just fall through to a fresh iteration
