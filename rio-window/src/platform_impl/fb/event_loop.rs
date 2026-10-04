@@ -94,14 +94,14 @@ impl Tty {
     fn read_available(&self, buf: &mut [u8]) -> usize {
         // SAFETY: buf is a valid slice for the process lifetime.
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
-        if n < 0 && debug_input() {
+        if n < 0 {
             static ONCE: std::sync::Once = std::sync::Once::new();
             ONCE.call_once(|| {
-                eprintln!(
-                    "[fb] read error {}: {}",
+                flog(&format!(
+                    "read error {}: {}",
                     n,
                     std::io::Error::last_os_error()
-                )
+                ))
             });
         }
         if n <= 0 {
@@ -387,11 +387,29 @@ fn physical_for_char(ch: char) -> (PhysicalKey, Option<NamedKey>) {
 // Modifier state (shared shape with the orbital platform)
 // ---------------------------------------------------------------------------
 
-/// Input debugging: `AKUMA_FB_DEBUG_INPUT=1` logs every raw tty read and
-/// decoded key to stderr (useful with `2>/tmp/keys.log` from another shell).
+/// Input debugging: `AKUMA_FB_DEBUG_INPUT=1` enables it; the log goes to
+/// stderr AND to `/tmp/akuma-fb.log` — the file because the console shell
+/// may not parse `VAR=x cmd 2>file` (the kernel's own shell), and stderr
+/// on the console is invisible behind the framebuffer anyway.
 fn debug_input() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var("AKUMA_FB_DEBUG_INPUT").is_ok())
+}
+
+/// Append a line to `/tmp/akuma-fb.log` (best-effort; used for the debug
+/// trace so it survives the console shell's redirection quirks).
+pub(crate) fn flog(msg: &str) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/akuma-fb.log")
+    {
+        let _ = writeln!(f, "{msg}");
+    }
+    if debug_input() {
+        eprintln!("[fb] {msg}");
+    }
 }
 
 /// Fold the console's ctrl byte back in: with Ctrl held, 'i' really means
@@ -483,9 +501,7 @@ impl<T: 'static> EventLoop<T> {
         let tty = Tty::open()
             .map_err(|e| EventLoopError::Os(os_error!(e)))?;
         let (pipe_read, waker) = Waker::new();
-        if debug_input() {
-            eprintln!("[fb] EventLoop::new done (screen + tty ok)");
-        }
+        flog("EventLoop::new done (screen + tty ok)");
 
         Ok(Self {
             tty: Arc::new(Mutex::new(Some(tty))),
@@ -531,9 +547,7 @@ impl<T: 'static> EventLoop<T> {
         let mut start_cause = StartCause::Init;
         let mut keybuf: Vec<u8> = Vec::with_capacity(256);
         let mut iterations: u64 = 0;
-        if debug_input() {
-            eprintln!("[fb] event loop entered, tty opened");
-        }
+        flog("event loop entered, tty opened");
         // modifier latches: the console folds modifiers into the bytes it
         // sends (upper-case text = shift, control bytes = ctrl, ESC prefix
         // = alt), so they are recovered per key press, not tracked
@@ -593,12 +607,10 @@ impl<T: 'static> EventLoop<T> {
                         if n == 0 {
                             break;
                         }
-                        if debug_input() {
-                            eprintln!(
-                                "[fb] tty read {n}B: {:?}",
-                                String::from_utf8_lossy(&chunk[..n])
-                            );
-                        }
+                        flog(&format!(
+                            "tty read {n}B: {:?}",
+                            String::from_utf8_lossy(&chunk[..n])
+                        ));
                         keybuf.extend_from_slice(&chunk[..n]);
                         if keybuf.len() > 4096 {
                             keybuf.clear(); // runaway sequence; drop it
@@ -614,12 +626,12 @@ impl<T: 'static> EventLoop<T> {
             }
 
             iterations += 1;
-            if debug_input() && iterations % 100 == 0 {
-                eprintln!("[fb] loop iteration {iterations}");
+            if iterations % 100 == 0 {
+                flog(&format!("loop iteration {iterations}"));
             }
 
-            if debug_input() && !msgs.is_empty() {
-                eprintln!("[fb] decoded {} keys: {:?}", msgs.len(), msgs);
+            if !msgs.is_empty() {
+                flog(&format!("decoded {} keys: {:?}", msgs.len(), msgs));
             }
 
             for mut msg in msgs {
