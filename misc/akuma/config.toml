@@ -1,0 +1,70 @@
+# rio on the Akuma panel (2026-10-05). Backup of the previous file:
+# /root/.config/rio/config.toml.bak
+shell = { program = "/bin/sh" }
+# Alt+Q quits without the "are you sure" screen
+confirm-before-quit = false
+
+[fonts]
+# kernel console cell is 20x40; 27 gives a ~34 px line, 15% smaller
+size = 27.0
+family = "Source Code Pro"
+
+# Two sessions side by side. The right half of this panel is dead, so
+# Alt+S swaps the sessions and keeps the active one on the left.
+# Keys: the console cannot send Super or Ctrl+Shift, so everything is on
+# Alt. "Alt+x" also works as Esc, then x.
+#   Alt+D  split (new session on the right)    Alt+S  swap: other session to the left, focused
+#   Alt+N  focus the other pane                Alt+W  close the focused pane
+#   Alt+Q  quit rio                            Ctrl+D also ends a shell (and rio with the last one)
+[navigation]
+mode = "Plain"
+use-split = true
+unfocused-split-opacity = 0.6
+
+[bindings]
+keys = [
+  { key = "d", with = "alt", action = "SplitRight" },
+  { key = "s", with = "alt", action = "SwapSplit" },
+  { key = "n", with = "alt", action = "SelectNextSplit" },
+  { key = "w", with = "alt", action = "CloseSplitOrTab" },
+  { key = "q", with = "alt", action = "Quit" },
+]
+
+# --- CRT look: green phosphor --------------------------------------------
+# To turn it OFF: delete everything from here to "end CRT look" (or the
+# whole [colors] table) and restart rio; rio falls back to its default theme.
+[colors]
+background = "#050a05"
+foreground = "#33ff66"
+cursor = "#33ff66"
+vi-cursor = "#33ff66"
+selection-background = "#1a5c2a"
+selection-foreground = "#b8ffc8"
+split = "#0f2a14"
+split-active = "#33ff66"
+black = "#050a05"
+red = "#7dff8f"
+green = "#33ff66"
+yellow = "#a8ff3e"
+blue = "#20b850"
+magenta = "#5cff9d"
+cyan = "#66ffcc"
+white = "#c8ffd4"
+light-black = "#1f5a2c"
+light-red = "#a6ffb3"
+light-green = "#7dff9e"
+light-yellow = "#d4ff80"
+light-blue = "#48d878"
+light-magenta = "#8dffbd"
+light-cyan = "#99ffe0"
+light-white = "#eaffef"
+dim-black = "#030603"
+dim-red = "#3d8a47"
+dim-green = "#1a8a3a"
+dim-yellow = "#5a8a20"
+dim-blue = "#106030"
+dim-magenta = "#2e8a52"
+dim-cyan = "#338a6e"
+dim-white = "#6a8a70"
+dim-foreground = "#1a8a3a"
+# end CRT look
