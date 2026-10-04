@@ -30,9 +30,14 @@ keys = [
   { key = "q", with = "alt", action = "Quit" },
 ]
 
-# --- CRT look: green phosphor --------------------------------------------
-# To turn it OFF: delete everything from here to "end CRT look" (or the
-# whole [colors] table) and restart rio; rio falls back to its default theme.
+# --- CRT look: curved tubes + green phosphor --------------------------------
+# To turn it OFF: delete everything from here to "end CRT look" and restart
+# rio (default theme, flat picture). To keep the colours but drop the curved
+# glass/scanlines, delete just the [renderer] table below.
+# "akuma-crt-2" = two tubes side by side, one per pane; "akuma-crt" = one.
+[renderer]
+filters = ["akuma-crt-2"]
+
 [colors]
 background = "#050a05"
 foreground = "#33ff66"
