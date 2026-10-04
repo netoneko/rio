@@ -554,10 +554,30 @@ pub fn create_pty_with_spawn(
     }
 
     if res < 0 {
-        return Err(Error::other(format!(
-            "openpty failed: {}",
-            Error::last_os_error()
-        )));
+        let err = Error::last_os_error();
+        // Kernels without ptys (Akuma): the same pipe fallback as
+        // create_pty_with_fork.
+        #[cfg(target_env = "musl")]
+        {
+            tracing::warn!("openpty failed ({err}); falling back to a pipe pty");
+            let user = ShellUser::from_env().unwrap_or_default();
+            let program = shell.unwrap_or(&user.shell);
+            let signals = Signals::new([sigconsts::SIGCHLD])?;
+            return pipe_pty::spawn(
+                program,
+                &args,
+                env.as_deref().unwrap_or_default(),
+                working_directory.as_deref(),
+                signals,
+            )
+            .map_err(|e| {
+                Error::other(format!(
+                    "openpty failed ({err}); pipe fallback failed: {e}"
+                ))
+            });
+        }
+        #[cfg(not(target_env = "musl"))]
+        return Err(Error::other(format!("openpty failed: {err}")));
     }
 
     // Own both descriptors before any fallible setup so every error path
@@ -837,7 +857,7 @@ pub fn create_pty_with_fork(
             #[cfg(target_env = "musl")]
             {
                 tracing::warn!("forkpty failed ({err}); falling back to a pipe pty");
-                pipe_pty::spawn(shell_program, args, envs, signals).map_err(|e| {
+                pipe_pty::spawn(shell_program, args, envs, None, signals).map_err(|e| {
                     Error::other(format!(
                         "forkpty failed using {shell_program} ({err}); pipe fallback failed: {e}"
                     ))

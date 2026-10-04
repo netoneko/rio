@@ -173,8 +173,10 @@ mod spawn {
         shell: &str,
         args: &[String],
         envs: &[(String, String)],
+        cwd: Option<&str>,
         signals: Signals,
     ) -> Result<Pty, Error> {
+        let cwd = cwd.and_then(|d| std::ffi::CString::new(d).ok());
         let (master, relay_end) = socketpair()?;
         let (shell_in_r, shell_in_w) = pipe()?;
         let (shell_out_r, shell_out_w) = pipe()?;
@@ -192,6 +194,9 @@ mod spawn {
                 libc::dup2(shell_in_r.as_raw_fd(), 0);
                 libc::dup2(shell_out_w.as_raw_fd(), 1);
                 libc::dup2(shell_out_w.as_raw_fd(), 2);
+                if let Some(dir) = &cwd {
+                    libc::chdir(dir.as_ptr());
+                }
                 set_child_envs(envs);
                 default_shell_command(shell, args);
                 libc::_exit(127)
