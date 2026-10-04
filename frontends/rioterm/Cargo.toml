@@ -114,6 +114,8 @@ wayland = [
     "rio-window/wayland-dlopen",
 ]
 wgpu = ["sugarloaf/wgpu", "rio-backend/wgpu"]
+# The framebuffer platform (Akuma): screen = /dev/fb0, input = console tty.
+fb = ["rio-window/fb"]
 
 # "rio-window/wayland-csd-adwaita-crossfont",
 

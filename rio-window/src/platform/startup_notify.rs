@@ -57,6 +57,13 @@ pub trait WindowAttributesExtStartupNotify {
 
 impl EventLoopExtStartupNotify for ActiveEventLoop {
     fn read_token_from_env(&self) -> Option<ActivationToken> {
+        // no window system on the fb platform: no activation tokens
+        #[cfg(fb_platform)]
+        {
+            let _ = self;
+            return None;
+        }
+        #[cfg(not(fb_platform))]
         match self.p {
             #[cfg(wayland_platform)]
             crate::platform_impl::ActiveEventLoop::Wayland(_) => env::var(WAYLAND_VAR),
@@ -70,14 +77,29 @@ impl EventLoopExtStartupNotify for ActiveEventLoop {
 
 impl WindowExtStartupNotify for Window {
     fn request_activation_token(&self) -> Result<AsyncRequestSerial, NotSupportedError> {
+        #[cfg(fb_platform)]
+        {
+            let _ = self;
+            return Err(NotSupportedError::new());
+        }
+        #[cfg(not(fb_platform))]
         self.window.request_activation_token()
     }
 }
 
 impl WindowAttributesExtStartupNotify for WindowAttributes {
     fn with_activation_token(mut self, token: ActivationToken) -> Self {
-        self.platform_specific.activation_token = Some(token);
-        self
+        // no window system on the fb platform: nothing to record
+        #[cfg(fb_platform)]
+        {
+            let _ = token;
+            self
+        }
+        #[cfg(not(fb_platform))]
+        {
+            self.platform_specific.activation_token = Some(token);
+            self
+        }
     }
 }
 

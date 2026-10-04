@@ -10,7 +10,7 @@ pub mod macos;
 pub mod orbital;
 #[cfg(any(fb_platform, docsrs))]
 pub mod fb;
-#[cfg(any(x11_platform, wayland_platform, docsrs))]
+#[cfg(any(x11_platform, wayland_platform, fb_platform, docsrs))]
 pub mod startup_notify;
 #[cfg(any(wayland_platform, docsrs))]
 pub mod wayland;
@@ -45,6 +45,7 @@ pub mod pump_events;
     x11_platform,
     wayland_platform,
     orbital_platform,
+    fb_platform,
     docsrs
 ))]
 pub mod modifier_supplement;

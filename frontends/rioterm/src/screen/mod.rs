@@ -186,8 +186,18 @@ impl Screen<'_> {
                 // native ash backend on Linux. Other OSes fall through
                 // to the wgpu Vulkan path when wgpu is available;
                 // otherwise we degrade to CPU rasterizer.
-                #[cfg(target_os = "linux")]
+                // musl (the Akuma framebuffer build) has no Vulkan; the
+                // user's Vulkan request lands on the wgpu custom backend.
+                #[cfg(all(target_os = "linux", not(target_env = "musl")))]
                 Backend::Vulkan => SugarloafBackend::Vulkan,
+                #[cfg(all(target_os = "linux", target_env = "musl", wgpu_backend))]
+                Backend::Vulkan => SugarloafBackend::Wgpu(wgpu::Backends::empty()),
+                #[cfg(all(
+                    target_os = "linux",
+                    target_env = "musl",
+                    not(wgpu_backend)
+                ))]
+                Backend::Vulkan => SugarloafBackend::Cpu,
                 #[cfg(all(not(target_os = "linux"), wgpu_backend))]
                 Backend::Vulkan => SugarloafBackend::Wgpu(wgpu::Backends::VULKAN),
                 #[cfg(all(not(target_os = "linux"), not(wgpu_backend)))]
