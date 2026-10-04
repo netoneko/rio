@@ -15,6 +15,8 @@ description = "Winit fork maintained for Rio terminal"
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
+# The framebuffer platform (Akuma): screen = /dev/fb0, input = console tty.
+fb = ["libc"]
 x11 = ["x11-dl", "bytemuck", "percent-encoding", "xkbcommon-dl/x11", "x11rb"]
 wayland = [
     "wayland-client",
@@ -40,6 +42,8 @@ bindgen = "0.70.1"
 bitflags = { workspace = true }
 cursor-icon = "1.1.0"
 dpi = { version = "0.1.1" }
+# fb platform (ioctls, termios, poll); enabled by the `fb` feature
+libc = { workspace = true, optional = true }
 raw-window-handle = { workspace = true }
 smol_str = { workspace = true }
 tracing = { version = "0.1.40", default-features = false }

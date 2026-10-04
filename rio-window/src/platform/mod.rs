@@ -8,6 +8,8 @@ pub mod linux;
 pub mod macos;
 #[cfg(any(orbital_platform, docsrs))]
 pub mod orbital;
+#[cfg(any(fb_platform, docsrs))]
+pub mod fb;
 #[cfg(any(x11_platform, wayland_platform, docsrs))]
 pub mod startup_notify;
 #[cfg(any(wayland_platform, docsrs))]

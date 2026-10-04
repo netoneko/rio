@@ -20,6 +20,7 @@ fn main() {
         x11_platform: { all(feature = "x11", free_unix, not(redox)) },
         wayland_platform: { all(feature = "wayland", free_unix, not(redox)) },
         orbital_platform: { redox },
+        fb_platform: { all(feature = "fb", free_unix, not(redox)) },
     }
 
     println!("cargo:rustc-check-cfg=cfg(android_platform)");
@@ -34,6 +35,7 @@ fn main() {
     println!("cargo:rustc-check-cfg=cfg(x11_platform)");
     println!("cargo:rustc-check-cfg=cfg(wayland_platform)");
     println!("cargo:rustc-check-cfg=cfg(orbital_platform)");
+    println!("cargo:rustc-check-cfg=cfg(fb_platform)");
 
     println!("cargo:rustc-check-cfg=cfg(unreleased_changelogs)");
 

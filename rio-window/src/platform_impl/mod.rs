@@ -13,6 +13,9 @@ mod platform;
 #[cfg(any(x11_platform, wayland_platform))]
 #[path = "linux/mod.rs"]
 mod platform;
+#[cfg(fb_platform)]
+#[path = "fb/mod.rs"]
+mod platform;
 #[cfg(macos_platform)]
 #[path = "macos/mod.rs"]
 mod platform;
@@ -66,5 +69,6 @@ impl From<Fullscreen> for RootFullscreen {
     not(wayland_platform),
     not(web_platform),
     not(orbital_platform),
+    not(fb_platform),
 ))]
 compile_error!("The platform you're compiling for is not supported by winit");
