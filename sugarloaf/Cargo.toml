@@ -102,6 +102,13 @@ walkdir = "2.5.0"
 softbuffer = "0.4.8"
 ttf-parser = { version = "0.25.1", default-features = false, features = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"] }
 
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+# The Akuma framebuffer wgpu backend: the library target of the
+# akuma-cli-wgpu demo crate (netoneko/akuma-cli-wgpu), exposing
+# `wgpu_backend::backend::Instance` for `wgpu::Instance::from_custom`.
+# Path dep while the backend extraction into its own repo is pending.
+akuma-cli-wgpu = { path = "../../akuma-cli-wgpu" }
+
 [target.'cfg(all(unix, not(any(target_os = "macos", target_os = "android")), not(target_env = "musl")))'.dependencies]
 fontconfig-parser = { version = "0.5.8", default-features = false }
 # Direct fontconfig FFI for per-codepoint discovery (the missing

@@ -38,6 +38,14 @@ impl<'a> WgpuContext<'a> {
         let backend = wgpu::Backends::from_env().unwrap_or(wgpu_backend);
         let mut instance_desc = wgpu::InstanceDescriptor::new_without_display_handle();
         instance_desc.backends = backend;
+        // musl (the Akuma framebuffer build): the custom fbdev backend
+        // instead of real GPU backends. The surface is /dev/fb0; the
+        // raw window handle sugarloaf passes is ignored by the backend.
+        #[cfg(target_env = "musl")]
+        let instance = wgpu::Instance::from_custom(
+            akuma_cli_wgpu::wgpu_backend::backend::Instance,
+        );
+        #[cfg(not(target_env = "musl"))]
         let instance = wgpu::Instance::new(instance_desc);
 
         tracing::info!("selected instance: {instance:?}");
