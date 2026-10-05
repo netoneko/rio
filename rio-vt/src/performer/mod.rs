@@ -353,7 +353,7 @@ where
         while let Some(msg) = self.receiver.recv() {
             match msg {
                 Msg::Input(input) => {
-                    plog(format_args!("input {}B queued", input.len()));
+                    plog(format_args!("input {}B queued {:?}", input.len(), &input[..input.len().min(16)]));
                     state.write_list.push_back(input)
                 }
                 Msg::Resize(window_size) => {

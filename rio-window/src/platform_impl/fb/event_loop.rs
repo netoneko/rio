@@ -223,8 +223,10 @@ fn decode_keys(buf: &[u8], out: &mut Vec<KeyMsg>) -> usize {
             continue;
         }
         match b {
+            // Enter's text is CR, as winit's: rio writes the text to the pty
+            // as is, and a raw-mode program (no ICRNL) treats LF as Ctrl+J.
             b'\r' | b'\n' => out.push(KeyMsg {
-                text: Some("\n".into()),
+                text: Some(if b == b'\r' { "\r" } else { "\n" }.into()),
                 logical: Key::Named(NamedKey::Enter),
                 physical: PhysicalKey::Code(KeyCode::Enter),
                 named: Some(NamedKey::Enter),
@@ -343,7 +345,9 @@ fn decode_csi(params: &[u8], final_byte: u8) -> Option<KeyMsg> {
 
 fn named(n: NamedKey, c: KeyCode) -> KeyMsg {
     KeyMsg {
-        text: None,
+        // rio writes the key's text to the pty as is; Escape has no other
+        // way to reach the program (winit gives it "\x1b")
+        text: if n == NamedKey::Escape { Some("\x1b".into()) } else { None },
         logical: Key::Named(n),
         physical: PhysicalKey::Code(c),
         named: Some(n),
@@ -500,6 +504,11 @@ pub struct EventLoop<T> {
     user_events_receiver: mpsc::Receiver<T>,
 }
 
+/// How long a lone ESC waits for the rest of a sequence before it is an
+/// Escape key. Long enough for a human "Esc, then letter" (the panel's
+/// binding style), short enough that Esc in vi is not sluggish.
+const ESC_FLUSH_MS: u64 = 400;
+
 /// Longest single poll wait, in ms: with `ControlFlow::Wait` the loop
 /// spins at this rate instead of blocking forever, which is what keeps
 /// the tty readable on a kernel whose poll is not trusted (30 Hz of
@@ -577,6 +586,7 @@ impl<T: 'static> EventLoop<T> {
 
         let mut start_cause = StartCause::Init;
         let mut keybuf: Vec<u8> = Vec::with_capacity(256);
+        let mut pending_since: Option<Instant> = None;
         let mut iterations: u64 = 0;
         flog("event loop entered, tty opened");
         // modifier latches: the console folds modifiers into the bytes it
@@ -653,6 +663,29 @@ impl<T: 'static> EventLoop<T> {
                     }
                     let consumed = decode_keys(&keybuf, &mut msgs);
                     keybuf.drain(..consumed);
+                    // A lone ESC (or other incomplete sequence) is held for
+                    // the next bytes; a real Alt+key / CSI arrives in one
+                    // read. If nothing follows within ESC_FLUSH_MS it is a
+                    // plain Escape: deliver it, or it would sit here until
+                    // the next key and turn that one into Alt+key (Esc,
+                    // Enter, `1` swallowed; a later `q` fires Alt+q = Quit).
+                    if keybuf.is_empty() {
+                        pending_since = None;
+                    } else {
+                        if consumed > 0 || pending_since.is_none() {
+                            pending_since = Some(Instant::now());
+                        }
+                        let waited = pending_since.map_or(Duration::ZERO, |t| t.elapsed());
+                        if waited >= Duration::from_millis(ESC_FLUSH_MS) {
+                            if keybuf[0] == 0x1b {
+                                msgs.push(named(NamedKey::Escape, KeyCode::Escape));
+                            }
+                            keybuf.remove(0);
+                            let c = decode_keys(&keybuf, &mut msgs);
+                            keybuf.drain(..c);
+                            pending_since = if keybuf.is_empty() { None } else { Some(Instant::now()) };
+                        }
+                    }
                 }
             }
 
@@ -778,10 +811,15 @@ impl<T: 'static> EventLoop<T> {
                 libc::pollfd { fd: tty_fd, events: libc::POLLIN, revents: 0 },
                 libc::pollfd { fd: self.pipe_read, events: libc::POLLIN, revents: 0 },
             ];
-            let timeout_ms = match &timeout {
+            let mut timeout_ms = match &timeout {
                 Some(d) => (d.as_millis() as libc::c_int).clamp(1, POLL_SLICE_MS),
                 None => POLL_SLICE_MS,
             };
+            if let Some(t) = pending_since {
+                // wake in time to flush a held ESC
+                let left = Duration::from_millis(ESC_FLUSH_MS).saturating_sub(t.elapsed());
+                timeout_ms = timeout_ms.min((left.as_millis() as libc::c_int).max(1));
+            }
             // SAFETY: fds is a valid poll array for the call.
             let ready = unsafe { libc::poll(fds.as_mut_ptr(), 2, timeout_ms) };
             let _ = ready; // EINTR etc. just fall through to a fresh iteration
@@ -968,7 +1006,8 @@ mod tests {
         let msgs = decode(b"\r");
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0].named, Some(NamedKey::Enter));
-        assert_eq!(msgs[0].text.as_deref(), Some("\n"));
+        assert_eq!(msgs[0].text.as_deref(), Some("\r"));
+        assert_eq!(decode(b"\n")[0].text.as_deref(), Some("\n"));
     }
 
     #[test]
@@ -1011,6 +1050,23 @@ mod tests {
     fn backspace_is_del_byte() {
         let msgs = decode(&[0x7f]);
         assert_eq!(msgs[0].named, Some(NamedKey::Backspace));
+    }
+
+    #[test]
+    fn escape_key_carries_its_byte() {
+        let m = named(NamedKey::Escape, KeyCode::Escape);
+        assert_eq!(m.text.as_deref(), Some("\x1b"));
+    }
+
+    #[test]
+    fn lone_esc_is_held_by_the_decoder_and_flushed_by_the_loop() {
+        // the decoder alone holds it (the loop flushes after ESC_FLUSH_MS);
+        // with a following key in the same buffer it is Alt+key
+        let mut out = Vec::new();
+        assert_eq!(decode_keys(b"\x1b", &mut out), 0);
+        assert!(out.is_empty());
+        assert_eq!(decode_keys(b"\x1bd", &mut out), 2);
+        assert!(out[0].alt);
     }
 
     #[test]

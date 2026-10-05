@@ -4,9 +4,14 @@ shell = { program = "/bin/sh" }
 # Esc, Q quits without the "are you sure" screen
 confirm-before-quit = false
 
+[cursor]
+# blinking is off in rio's defaults; the fb loop honours WaitUntil timers
+blinking = true
+blinking-interval = 600
+
 [fonts]
-# kernel console cell is 20x40; 27 gives a ~34 px line, 15% smaller
-size = 27.0
+# kernel console cell is 20x40; 32 gives a ~40 px line, about the console cell
+size = 32.0
 family = "Source Code Pro"
 
 # Two sessions side by side. The right half of this panel is dead, so
