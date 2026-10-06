@@ -82,3 +82,12 @@ dim-cyan = "#338a6e"
 dim-white = "#6a8a70"
 dim-foreground = "#1a8a3a"
 # end CRT look
+
+# The status bar along the bottom: wifi, battery (/proc/power), a bell marker
+# until the next keypress, and the clock. Reads Akuma's /proc/power and
+# /dev/wifi0; an item whose source is absent is simply left out.
+# docs/archive/AKUMA_ACPI_POWER.md in the akuma repo.
+[status-bar]
+enabled = true
+# the box has no timezone database: the clock is UTC plus this
+utc-offset-minutes = 180

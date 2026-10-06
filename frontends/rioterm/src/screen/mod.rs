@@ -27,7 +27,10 @@ use crate::hints::HintState;
 use crate::layout::ContextDimension;
 use crate::mouse::{calculate_mouse_position, Mouse};
 use crate::renderer::island::{self, TabStripLayout, ISLAND_HEIGHT};
-use crate::renderer::{utils::padding_top_from_config, Renderer};
+use crate::renderer::{
+    utils::{padding_bottom_from_config, padding_top_from_config},
+    Renderer,
+};
 use crate::screen::hint::HintMatches;
 use crate::selection::{Selection, SelectionType};
 use core::fmt::Debug;
@@ -156,7 +159,8 @@ impl Screen<'_> {
             config.window.macos_use_unified_titlebar,
         );
 
-        let padding_y_bottom = config.margin.bottom;
+        let padding_y_bottom =
+            padding_bottom_from_config(config.margin.bottom, &config.status_bar);
         let sugarloaf_layout =
             RootStyle::new(scale as f32, config.fonts.size, config.line_height);
 
@@ -534,7 +538,8 @@ impl Screen<'_> {
             num_tabs,
             config.window.macos_use_unified_titlebar,
         );
-        let padding_y_bottom = config.margin.bottom;
+        let padding_y_bottom =
+            padding_bottom_from_config(config.margin.bottom, &config.status_bar);
 
         if should_update_font_library {
             self.sugarloaf.update_font(font_library);
@@ -1798,7 +1803,8 @@ impl Screen<'_> {
             num_tabs,
             self.renderer.macos_use_unified_titlebar,
         );
-        let padding_y_bottom = self.renderer.margin.bottom;
+        let padding_y_bottom =
+            self.renderer.margin.bottom + self.renderer.status_bar.reserved_height();
 
         let scale = self.sugarloaf.scale_factor();
         let scaled_top = padding_y_top * scale;

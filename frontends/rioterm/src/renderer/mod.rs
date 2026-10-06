@@ -14,6 +14,7 @@ pub mod helpers;
 pub mod island;
 pub mod scrollbar;
 pub mod search;
+pub mod status_bar;
 pub mod trail_cursor;
 pub mod utils;
 
@@ -161,6 +162,7 @@ pub struct Renderer {
     pub navigation: Navigation,
     pub margin: rio_backend::config::layout::Margin,
     pub island: Option<island::Island>,
+    pub status_bar: status_bar::StatusBar,
     pub command_palette: command_palette::CommandPalette,
     unfocused_split_opacity: f32,
     unfocused_split_fill: Option<ColorArray>,
@@ -256,6 +258,7 @@ impl Renderer {
             navigation: config.navigation.clone(),
             margin: config.margin,
             island,
+            status_bar: status_bar::StatusBar::new(&config.status_bar),
             command_palette: {
                 let mut palette = command_palette::CommandPalette::new();
                 palette.has_adaptive_theme = config.adaptive_colors.is_some();
@@ -823,6 +826,12 @@ impl Renderer {
                 island_bg,
             );
         }
+
+        self.status_bar.render(
+            sugarloaf,
+            (window_size.width, window_size.height, scale_factor),
+            self.named_colors.background.0,
+        );
 
         self.assistant.render(
             sugarloaf,

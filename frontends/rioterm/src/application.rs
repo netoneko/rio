@@ -778,6 +778,14 @@ impl ApplicationHandler<EventPayload> for Application<'_> {
                     }
                 }
             }
+            RioEventType::Rio(RioEvent::StatusBarTick) => {
+                if let Some(route) = self.router.routes.get_mut(&window_id) {
+                    let bar = &mut route.window.screen.renderer.status_bar;
+                    if bar.enabled() && bar.refresh() {
+                        route.request_overlay_redraw();
+                    }
+                }
+            }
             RioEventType::Rio(RioEvent::SelectionScrollTick) => {
                 if let Some(route) = self.router.routes.get_mut(&window_id) {
                     route.window.screen.selection_scroll_tick();
@@ -785,6 +793,12 @@ impl ApplicationHandler<EventPayload> for Application<'_> {
                 }
             }
             RioEventType::Rio(RioEvent::Bell(route_id)) => {
+                if let Some(route) = self.router.routes.get_mut(&window_id) {
+                    if route.window.screen.renderer.status_bar.ring() {
+                        route.request_overlay_redraw();
+                    }
+                }
+
                 // Handle audio bell
                 if self.config.bell.audio {
                     self.handle_audio_bell();
@@ -2049,6 +2063,9 @@ impl ApplicationHandler<EventPayload> for Application<'_> {
                 }
 
                 route.window.screen.context_manager.set_last_typing();
+                if route.window.screen.renderer.status_bar.clear_bell() {
+                    route.request_overlay_redraw();
+                }
                 route
                     .window
                     .screen
@@ -2344,6 +2361,28 @@ impl ApplicationHandler<EventPayload> for Application<'_> {
         {
             event_loop.exit();
             return;
+        }
+        // The status bar's refresh timer. Started lazily from the first
+        // batch after a window exists, because the interval lives in the
+        // per-window renderer; one repeating timer per window.
+        for (window_id, route) in self.router.routes.iter() {
+            let bar = &route.window.screen.renderer.status_bar;
+            if !bar.enabled() {
+                continue;
+            }
+            let timer_id =
+                TimerId::new(Topic::StatusBar, route.window.screen.ctx().current_route());
+            if !self.scheduler.scheduled(timer_id) {
+                self.scheduler.schedule(
+                    EventPayload::new(
+                        RioEventType::Rio(RioEvent::StatusBarTick),
+                        *window_id,
+                    ),
+                    bar.interval(),
+                    true,
+                    timer_id,
+                );
+            }
         }
         let control_flow = match self.scheduler.update() {
             Some(instant) => ControlFlow::WaitUntil(instant),

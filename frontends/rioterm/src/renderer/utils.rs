@@ -42,6 +42,16 @@ pub fn padding_top_from_config(
     default_padding
 }
 
+/// The grid's bottom padding: the configured margin plus the status bar's row,
+/// so the terminal ends where the bar begins and the pty is sized to match.
+#[inline]
+pub fn padding_bottom_from_config(
+    margin_bottom: f32,
+    status_bar: &rio_backend::config::status_bar::StatusBar,
+) -> f32 {
+    margin_bottom + status_bar.reserved_height()
+}
+
 #[inline]
 pub fn terminal_dimensions(layout: &ContextDimension) -> rio_backend::event::WindowSize {
     let width = layout.width - layout.margin.left - layout.margin.right;

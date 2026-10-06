@@ -9,6 +9,7 @@ pub use rio_vt::{
 };
 
 pub mod config;
+pub mod statusline;
 
 #[cfg(test)]
 mod graphics;
